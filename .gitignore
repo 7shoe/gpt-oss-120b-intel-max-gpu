@@ -1,4 +1,5 @@
 # Build artifacts
+llama.cpp
 llama.cpp/build/
 llama.cpp/.patches_applied
 *.o
@@ -6,10 +7,12 @@ llama.cpp/.patches_applied
 *.a
 
 # Model files (too large for git)
+models
 models/*.gguf
 
 # Vulkan SDK (can be downloaded)
 *.tar.xz
+scripts/1.4.321.1
 
 # Test outputs (except test-results/)
 *.log
