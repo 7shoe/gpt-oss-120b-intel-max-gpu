@@ -20,6 +20,7 @@ scripts/1.4.321.1
 
 # Python
 __pycache__/
+multi-xpu/__pycache__/
 *.pyc
 *.pyo
 *.pyd
