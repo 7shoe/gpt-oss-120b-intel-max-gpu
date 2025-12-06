@@ -49,8 +49,8 @@ It is the model with weights `gpt-oss-120b-Q4_K_M-00001-of-00002.gguf` (47 GB) a
 ./download-gpt-oss-120b.sh
 ```
 
-### 4. Run Inference
-Check if it works:
+### 4. Verify functionality
+See if it works by running 
 ```bash
 ./run-inference.sh "What is the meaning of life?"
 ```
@@ -59,13 +59,16 @@ Check if it works:
 
 ## Model Specifications
 
-### Basic Usage
+### Single XPU Inference
 
 ```bash
+# use XPU device 0
 export ONEAPI_DEVICE_SELECTOR="level_zero:0"
-./build/bin/llama-cli \
+
+# run inference
+./llama.cpp/build/bin/llama-cli \
     -m ../models/gpt-oss-120b-Q4_K_M-00001-of-00002.gguf \
-    -p "Your prompt here" \
+    -p "What is 9*8 + 9?" \
     -ngl 80 \
     -c 2048 \
     -n 200
