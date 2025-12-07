@@ -36,6 +36,9 @@ ENV/
 *~
 .DS_Store
 
+# Output path (transfer files from tmp DAOS)
+daos_output/
+
 # Temporary files
 tmp/
 temp/

@@ -14,6 +14,11 @@ echo "Job ID: ${PBS_JOBID}"
 echo "Running on nodes:"
 cat "${PBS_NODEFILE}"
 
+# ----------------------------------------------------------------------------
+# MODEL
+# ----------------------------------------------------------------------------
+MODEL_PREFIX="gpt-oss-120b-Q4_K_M"
+MODEL_BASENAME_FIRST="${MODEL_PREFIX}-00001-of-00002.gguf"
 # -----------------------------------------------------------------------------
 # Modules / environment
 # -----------------------------------------------------------------------------
@@ -21,7 +26,7 @@ module use /soft/modulefiles
 module load daos
 module load frameworks
 
-# conda 
+# conda  (the hard-coded source is optional; can be dropped)
 source /opt/aurora/25.190.0/oneapi/intel-conda-miniforge/etc/profile.d/conda.sh
 
 # Derive CONDA_BASE from "which conda":
@@ -32,16 +37,15 @@ echo "CONDA_BASE=${CONDA_BASE}"
 
 # Source the conda init script
 source "${CONDA_BASE}/etc/profile.d/conda.sh"
-
+# conda env 
 conda activate torch-xpu-py312
-
 
 # Llama networking / XPU env
 unset ONEAPI_DEVICE_SELECTOR
 export FI_PROVIDER=tcp
 
-# naviagte
-cd $PBS_O_WORKDIR
+# navigate
+cd "${PBS_O_WORKDIR}"
 
 # -----------------------------------------------------------------------------
 # DAOS: pool, container, dfuse mount on compute nodes
@@ -54,12 +58,41 @@ echo "Launching dfuse on all nodes..."
 launch-dfuse.sh "${DAOS_POOL}:${DAOS_CONT}"
 
 DAOS_ROOT="/tmp/${DAOS_POOL}/${DAOS_CONT}"
+
+# input/output data
 SRC_DIR="${DAOS_ROOT}/parquet_shards"
 DST_DIR="${DAOS_ROOT}/output_tmp"
-MODEL_DIR="${DAOS_ROOT}/models"
 
-# Create output directory on DAOS (only needs to run on one node; it's shared)
+# weights
+MODEL_DIR="${DAOS_ROOT}/models"
+LOCAL_MODEL_DIR="/tmp/llama_models"
+LOCAL_MODEL="${LOCAL_MODEL_DIR}/${MODEL_BASENAME_FIRST}"
+
+# output directory on DAOS (only needs to run on one node; it's shared)
 mkdir -p "${DST_DIR}"
+
+# -----------------------------------------------------------------------------
+# Transfer weights to node-local disk (mmap compatible) for each node
+# -----------------------------------------------------------------------------
+NODES=$(awk -F/ '{print $1}' "${PBS_NODEFILE}" | sort -u | paste -sd, -)
+
+clush -w "${NODES}" "
+  mkdir -p ${LOCAL_MODEL_DIR} ;
+  for src in ${MODEL_DIR}/${MODEL_PREFIX}-*.gguf; do
+    base=\$(basename \"\$src\")
+    dst=${LOCAL_MODEL_DIR}/\$base
+    if [ ! -f \"\$dst\" ]; then
+      echo \"[\$(hostname)] copying \$src -> \$dst\";
+      cp \"\$src\" \"\$dst\";
+    else
+      echo \"[\$(hostname)] shard already present: \$dst\";
+    fi
+  done
+"
+
+# this is what infer_equations_llama_mpi.py will see as --model
+MODEL_PATH="${LOCAL_MODEL}"
+echo "Using model: ${MODEL_PATH}"
 
 # -----------------------------------------------------------------------------
 # Lustre destination (long-term storage of results)
@@ -67,26 +100,11 @@ mkdir -p "${DST_DIR}"
 LUSTRE_OUT="/lus/flare/projects/FoundEpidem/siebenschuh/gpt-oss-120b-intel-max-gpu/daos_output"
 mkdir -p "${LUSTRE_OUT}"
 
-echo "DAOS_ROOT   = ${DAOS_ROOT}"
-echo "SRC_DIR     = ${SRC_DIR}"
-echo "DST_DIR     = ${DST_DIR}"
-echo "MODEL_DIR   = ${MODEL_DIR}"
-echo "LUSTRE_OUT  = ${LUSTRE_OUT}"
-
-# -----------------------------------------------------------------------------
-# Optional: stage model to node-local /tmp once per node
-# (You can skip this and just use MODEL_PATH on DAOS directly.)
-# -----------------------------------------------------------------------------
-# MODEL_ON_DAOS="${MODEL_DIR}/gpt-oss-120b-Q4_K_M-00001-of-00002.gguf"
-# MODEL_LOCAL="/tmp/llama-model.gguf"
-# echo "Staging model to /tmp on each node (optional)..."
-# clush --hostfile "${PBS_NODEFILE}" "if [ ! -f ${MODEL_LOCAL} ]; then cp ${MODEL_ON_DAOS} ${MODEL_LOCAL}; fi"
-# MODEL_PATH="${MODEL_LOCAL}"
-
-# Simpler: read model directly from DAOS
-MODEL_PATH="${MODEL_DIR}/gpt-oss-120b-Q4_K_M-00001-of-00002.gguf"
-
-echo "Using model: ${MODEL_PATH}"
+echo "DAOS_ROOT       = ${DAOS_ROOT}"
+echo "SRC_DIR         = ${SRC_DIR}"
+echo "DST_DIR         = ${DST_DIR}"
+echo "LOCAL_MODEL_DIR = ${LOCAL_MODEL_DIR}"
+echo "LUSTRE_OUT      = ${LUSTRE_OUT}"
 
 # -----------------------------------------------------------------------------
 # Periodic rsync from DAOS -> Lustre (runs on the job launch node)
@@ -118,8 +136,6 @@ NRANKS=$(( NNODES * RANKS_PER_NODE ))
 echo "NNODES        = ${NNODES}"
 echo "RANKS_PER_NODE= ${RANKS_PER_NODE}"
 echo "NRANKS        = ${NRANKS}"
-
-# If you want explicit CPU binding, you can add --cpu-bind or reuse Aurora examples.
 
 # -----------------------------------------------------------------------------
 # Launch the MPI-driven inference
