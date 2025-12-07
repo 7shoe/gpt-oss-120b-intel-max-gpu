@@ -8,7 +8,7 @@
 #PBS -l place=scatter
 #PBS -q debug
 
-set -euo pipefail
+set -eo pipefail
 
 echo "Job ID: ${PBS_JOBID}"
 echo "Running on nodes:"
@@ -127,7 +127,6 @@ echo "NRANKS        = ${NRANKS}"
 echo "Starting MPI inference at: $(date)"
 
 mpiexec -np "${NRANKS}" -ppn "${RANKS_PER_NODE}" \
-  --no-vni \
   python infer_equations_llama_mpi.py \
     --src "${SRC_DIR}" \
     --dst "${DST_DIR}" \
