@@ -37,3 +37,8 @@ mkdir -p /tmp/${USER}/${DAOS_POOL}/${DAOS_CONT}/output_tmp
 ```
 
 ### 3. Launch 
+Navigate to the directory and launch 
+```
+cd /lus/flare/projects/FoundEpidem/siebenschuh/gpt-oss-120b-intel-max-gpu/daos
+qsub run_gptoss120b_with_daos.sh
+```
