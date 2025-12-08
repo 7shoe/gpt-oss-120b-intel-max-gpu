@@ -1,5 +1,87 @@
 from typing import Any, Dict
 
+PROMPT_TEMPLATE_v3 = """You are a pure-math JSON generator.
+
+Given one LaTeX expression, output a SINGLE JSON object that is strictly valid
+and matches the structure below. Do not output any extra text.
+
+JSON STRUCTURE (do not add or remove keys):
+
+{{
+  "input": {{
+    "latex_raw": "..."
+  }},
+  "analysis": {{
+    "math_keywords": ["...", "..."],
+    "math_sentence": "...",
+    "katex": "..."
+  }},
+  "equivalents": {{
+    "equiv_form_1": {{
+      "name_of_trafo": "...",
+      "assumptions": ["...", "..."],
+      "latex": "..."
+    }},
+    "equiv_form_2": {{
+      "name_of_trafo": "...",
+      "assumptions": ["...", "..."],
+      "latex": "..."
+    }}
+  }}
+}}
+
+FIELD RULES
+- "input.latex_raw": MUST equal the raw LaTeX expression below (after minimal whitespace cleanup).
+- "analysis.math_keywords": 3–8 short pure-math keywords, most→least important
+  (e.g. "limit", "integral", "eigenvalue", "matrix", "functional").
+- "analysis.math_sentence": ONE concise sentence describing the expression; no line breaks.
+- "analysis.katex": KaTeX-compatible LaTeX. Fix obvious syntax issues but
+  do NOT wrap in $, $$, \\( \\), or \\[ \\].
+- "equiv_form_1"/"equiv_form_2":
+  - "name_of_trafo": very short description (e.g. "expand product",
+    "factor polynomial", "complete the square", "log rules").
+  - "assumptions": list of short strings; use [] if none are needed.
+  - "latex": an algebraically equivalent form, kept as short and simple as possible.
+
+JSON RULES
+- Output MUST be valid JSON, parseable by json.loads.
+- Use double quotes for all keys and strings.
+- No comments, no trailing commas, no backticks, no Markdown.
+- Escape backslashes in LaTeX strings (e.g. "\\\\frac{{1}}{{2}}", "\\\\int_0^1").
+- Do NOT echo this instruction or write any explanation.
+
+Return only the JSON object.
+
+LaTeX expression (raw):
+{latex_raw}
+"""
+
+PROMPT_TEMPLATE_LIGHT = """You are a pure-math JSON generator.
+
+Given one LaTeX expression, output a SINGLE JSON object:
+
+{{
+  "input": {{ "latex_raw": "..." }},
+  "analysis": {{
+    "math_keywords": ["...", "..."],
+    "math_sentence": "...",
+    "katex": "..."
+  }}
+}}
+
+Rules:
+- Same JSON and LaTeX rules as before (valid JSON, escaped backslashes, etc.).
+- math_keywords: 3–6 short pure-math terms.
+- math_sentence: ONE concise sentence, no line breaks.
+- katex: KaTeX-compatible LaTeX, no $ or \\[ \\].
+
+Return only the JSON object.
+
+LaTeX expression (raw):
+{latex_raw}
+"""
+
+
 # ---------------- Prompt template ----------------
 
 PROMPT_TEMPLATE = """You are a Bourbaki-style pure mathematician: precise, formal, and entirely abstract. You view every expression through structures, mappings, and transformations.
@@ -114,3 +196,4 @@ PURE_MATH_JSON_SCHEMA: Dict[str, Any] = {
         },
     },
 }
+
